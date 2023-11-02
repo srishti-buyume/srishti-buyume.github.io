@@ -1,16 +1,32 @@
-import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";  // Load package from CDN URL or install using NPM/Yarn
-
+// Load package from CDN URL for demo/test or install using NPM/Yarn for dev/prod
+import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";  
 const {ImageSegmenter, FaceLandmarker, FilesetResolver } = vision;
 let imageSegmenter;
-let labels;
 let faceLandmarker;
+let labels;
 let runningMode = "VIDEO";
-let enableLipColor = false;
-let enableFaceBlush = false;
-let enableEyeLiner = false;
-let enableEyeShadow = false;
+let enableFaceMakeup = true;
 let enableHairColor = false;
 let gpuStatus = false;
+let hairModelPath;
+
+
+// CHECK DEVICE GPU/CAMERA/BROWSER COMPATABILITY ETC.
+async function gpuInit() {
+    if (!navigator.gpu) {
+        hairModelPath = "https://raw.githubusercontent.com/srishti-buyume/vto-models/main/hair_small.tflite";
+        document.getElementById("gpuMsg").textContent = "GPU not supported, Loading Small Hair Model ";
+        throw Error("WebGPU not supported. Reload App.");  
+    } else {
+        gpuStatus = true;
+        document.getElementById("gpuMsg").textContent = "GPU supported, Loading Large Hair Model ";
+        hairModelPath = "https://raw.githubusercontent.com/srishti-buyume/vto-models/main/hair_large.tflite";
+    }
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      throw Error("Couldn't request WebGPU adapter. Reload App.");
+    }
+  }
 
 
 // LOAD IMAGE SEGMENTATION MODEL WITH SPECIFIED PARAMETERS 
@@ -18,7 +34,7 @@ const createImageSegmenter = async () => {
     const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"); // Again this CDN URL is only for demo purpose, load the package locally when building the app
     imageSegmenter = await ImageSegmenter.createFromOptions(vision, {
         baseOptions: {
-            modelAssetPath: "https://raw.githubusercontent.com/srishti-buyume/srishti-buyume/main/mp_selfie.tflite",  // Load the model locally from assets, this CDN URL is only for demo
+            modelAssetPath: hairModelPath,
             delegate: "GPU"
         },
         runningMode: runningMode,
@@ -48,7 +64,6 @@ const createFaceLandmarker = async () => {
 // MAIN FUNCTION FOR ALL VIRTUAL TRY ON FEATURES
 function virtualTryon() 
 {
-    gpuInit(); // check device GPU support
     let video = document.getElementById("webcam");
     let canvasElement = document.getElementById("canvas1");
     let canvasElement2 = document.getElementById("canvas2");
@@ -58,11 +73,11 @@ function virtualTryon()
     let enableWebcamButton;
     let webcamRunning = false;
     let legendColors = [ 
-        [90, 30, 31, 140], // Default Hair Color
+        [90, 30, 31, 200], // Default Hair Color- RGBA
         [90, 30, 31, 255], // Default Lip Color 
         [201, 15, 40, 255], // Default Blush Color
         [228, 93, 125, 255], // Default Shadow Color
-        [0, 0, 0, 0],  // Default Liner Color
+        [0, 0, 0, 255],  // Default Liner Color
     ]; 
 
     // Run hair coloring on live webcam feed
@@ -84,7 +99,7 @@ function virtualTryon()
         const dataNew = new ImageData(uint8Array, video.videoWidth, video.videoHeight);
         canvasCtx.imageSmoothingEnabled = true;
         canvasCtx.putImageData(dataNew, 0, 0);
-        canvasElement.style.filter = "blur(0px) brightness(110%) contrast(110%)"; 
+        canvasElement.style.filter = "blur(0px) brightness(110%) contrast(120%)"; 
         if (webcamRunning === true) {
             window.requestAnimationFrame(predictWebcam);
         }   
@@ -93,7 +108,6 @@ function virtualTryon()
 
     // Run hair coloring for image input
     function hairColorForImage(result) { 
-        if (enableHairColor)  {
         const cxt = canvasClick.getContext("2d");
         const { width, height } = result.categoryMask;
         let imageData = cxt.getImageData(0, 0, width, height).data;
@@ -113,83 +127,102 @@ function virtualTryon()
         const dataNew = new ImageData(uint8Array, width, height);
         canvasClick.imageSmoothingEnabled = true;
         cxt.putImageData(dataNew, 0, 0);
-        }
     }
 
 
-    // Run makeup VTO on live webcam feed
+    // Run makeup VTO on live webcam feed 
+    // Currently only Lip coloring is given as example to keep the code simple
     function makeupForVideo(landmarks) {
-            // Currently only Lip coloring is given as example to keep the code simple
-            canvasElement.style.display = 'block';
-
-            try{
+        canvasElement.style.display = 'block';
+        try{
             const landmarkLips1= [
                 landmarks[0][61],landmarks[0][40],landmarks[0][39],landmarks[0][37],landmarks[0][0],landmarks[0][267],landmarks[0][269],landmarks[0][270],landmarks[0][409],
                 landmarks[0][306], landmarks[0][415], landmarks[0][310],landmarks[0][311],landmarks[0][312],landmarks[0][13],landmarks[0][82],landmarks[0][81],landmarks[0][42],
-                landmarks[0][183],landmarks[0][61],landmarks[0][61],landmarks[0][61],landmarks[0][61],landmarks[0][61],landmarks[0][61],landmarks[0][61],
-                landmarks[0][61],landmarks[0][61], landmarks[0][61]
+                landmarks[0][183],landmarks[0][61]
                 ];
             const landmarkLips2= [
                 landmarks[0][61], landmarks[0][146],landmarks[0][91], landmarks[0][181],
                 landmarks[0][84], landmarks[0][17], landmarks[0][314],landmarks[0][405], landmarks[0][321], landmarks[0][375], landmarks[0][306], 
                 landmarks[0][409], landmarks[0][324], landmarks[0][318], landmarks[0][402],landmarks[0][317], 
                 landmarks[0][14], landmarks[0][87], landmarks[0][178], landmarks[0][88],landmarks[0][95], landmarks[0][61]
-                ];
-         
-          ctx.imageSmoothingEnabled = true;
-          const baseColor = { r: legendColors[1][0], g: legendColors[1][1], b: legendColors[1][2], a: 0.4 } ; //change alpha change for opacity
-          ctx.fillStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`;
-          ctx.strokeStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`;
-      
-          ctx.beginPath();
-          ctx.lineWidth= 0.9;
-          landmarkLips1.forEach(point => { ctx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 0, 0, Math.PI * 2) }); 
-        //   landmarkLips2.forEach(point => { ctx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 0, 0, Math.PI * 2) }); 
-          ctx.fill();
-          ctx.stroke(); 
-          ctx.closePath();
+                ]; 
+            ctx.imageSmoothingEnabled = true;
+            const baseColor = { r: legendColors[1][0], g: legendColors[1][1], b: legendColors[1][2], a: 0.6 } ; //change alpha change for opacity
+            ctx.fillStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`;
+            ctx.strokeStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`;
+        
+            ctx.beginPath();
+            ctx.lineWidth= 0.9;
+            landmarkLips1.forEach(point => { ctx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 0, 0, Math.PI * 2) }); 
+            //   landmarkLips2.forEach(point => { ctx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 0, 0, Math.PI * 2) }); 
+            ctx.fill();
+            ctx.stroke(); 
+            ctx.closePath();
 
-          ctx.beginPath();
-          ctx.lineWidth= 0.9;
-          landmarkLips2.forEach(point => { ctx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 0, 0, Math.PI * 2) }); 
-          ctx.fill();
-          ctx.stroke(); 
-          ctx.closePath();
+            ctx.beginPath();
+            ctx.lineWidth= 0.9;
+            landmarkLips2.forEach(point => { ctx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 0, 0, Math.PI * 2) }); 
+            ctx.fill();
+            ctx.stroke(); 
+            ctx.closePath();
+            canvasElement.style.filter = "blur(0px) brightness(110%) contrast(120%)"; 
 
-          canvasElement.style.filter = "blur(0px) brightness(110%) contrast(110%)"; 
-
-        if (webcamRunning === true) {
-            window.requestAnimationFrame(predictWebcam);
-        }   
+            if (webcamRunning === true) {
+                window.requestAnimationFrame(predictWebcam);
+            }   
 
         } catch {
-            document.getElementById("message4").textContent = " Face out of frame, Reload or Enable/Disable Button";
+            document.getElementById("makeupMsg").textContent = " Face out of frame, Reload or Enable/Disable Button";
         }
     }
 
 
     // Run makeup VTO for image input
     function makeupForImage(landmarks, canvas) {  
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
 
-        // Drawing Lip Stick Effect on Face
-        if (enableLipColor) {  
+        if (enableFaceMakeup) {  
+            // Drawing Eye Liner Effect on Face
+            const landmarkEyeliner1= [
+                landmarks[0][362], landmarks[0][398], landmarks[0][384], landmarks[0][385], landmarks[0][386],
+                landmarks[0][387], landmarks[0][388], landmarks[0][466], landmarks[0][263], landmarks[0][359]
+            ];
+            const landmarkEyeliner2= [
+                landmarks[0][133], landmarks[0][173], landmarks[0][157], landmarks[0][158], landmarks[0][159], 
+                landmarks[0][160], landmarks[0][161], landmarks[0][246], landmarks[0][33], landmarks[0][130]
+            ];
+            const linerBaseColor = { r: legendColors[4][0], g: legendColors[4][1], b: legendColors[4][2], a: 0.8}
+            ctx.strokeStyle = `rgba(${linerBaseColor.r}, ${linerBaseColor.g}, ${linerBaseColor.b}, ${linerBaseColor.a})`;
+            ctx.fillStyle = `rgba(${linerBaseColor.r}, ${linerBaseColor.g}, ${linerBaseColor.b}, ${linerBaseColor.a})`;
+        
+            ctx.beginPath();
+            ctx.lineWidth = 3;  
+            landmarkEyeliner1.forEach(point => {ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2)});    
+            ctx.stroke();
+            ctx.closePath();
+        
+            ctx.beginPath();
+            ctx.lineWidth = 3;
+            landmarkEyeliner2.forEach(point => { ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2) });
+            ctx.stroke();
+            ctx.closePath();   
+
+
+            // Drawing Lip Stick Effect on Face
             const landmarkLips1= [
-                landmarks[0][61],landmarks[0][40],landmarks[0][39],landmarks[0][37],landmarks[0][0],landmarks[0][267],landmarks[0][269],landmarks[0][270],landmarks[0][409],
-                landmarks[0][306], landmarks[0][415], landmarks[0][310],landmarks[0][311],landmarks[0][312],landmarks[0][13],landmarks[0][82],landmarks[0][81],landmarks[0][42],
-                landmarks[0][183],landmarks[0][61]
+                landmarks[0][61], landmarks[0][40], landmarks[0][39], landmarks[0][37], landmarks[0][0], landmarks[0][267], landmarks[0][269], 
+                landmarks[0][270], landmarks[0][409], landmarks[0][306], landmarks[0][415], landmarks[0][310], landmarks[0][311], landmarks[0][312],
+                landmarks[0][13], landmarks[0][82], landmarks[0][81], landmarks[0][42], landmarks[0][183], landmarks[0][61]
             ];
             const landmarkLips2= [
-                landmarks[0][61], landmarks[0][146],landmarks[0][91], landmarks[0][181],
-                landmarks[0][84], landmarks[0][17], landmarks[0][314],landmarks[0][405], landmarks[0][321], landmarks[0][375], landmarks[0][306], 
-                landmarks[0][409], landmarks[0][324], landmarks[0][318], landmarks[0][402],landmarks[0][317], 
-                landmarks[0][14], landmarks[0][87], landmarks[0][178], landmarks[0][88],landmarks[0][95], landmarks[0][61], 
+                landmarks[0][61], landmarks[0][146], landmarks[0][91], landmarks[0][181], landmarks[0][84], landmarks[0][17], landmarks[0][314],
+                landmarks[0][405], landmarks[0][321], landmarks[0][375], landmarks[0][306], landmarks[0][409], landmarks[0][324], landmarks[0][318], 
+                landmarks[0][402], landmarks[0][317], landmarks[0][14], landmarks[0][87], landmarks[0][178], landmarks[0][88], landmarks[0][95], landmarks[0][61], 
             ];
-         
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            const baseColor = { r: legendColors[1][0], g: legendColors[1][1], b: legendColors[1][2], a: 0.4} ; //{ r: 90, g: 30, b: 31, a: 0.6 };
-            ctx.fillStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`;
-            ctx.strokeStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`;
+            const lipBaseColor = { r: legendColors[1][0], g: legendColors[1][1], b: legendColors[1][2], a: 0.6} ; //{ r: 90, g: 30, b: 31, a: 0.6 };
+            ctx.fillStyle = `rgba(${lipBaseColor.r}, ${lipBaseColor.g}, ${lipBaseColor.b}, ${lipBaseColor.a})`;
+            ctx.strokeStyle = `rgba(${lipBaseColor.r}, ${lipBaseColor.g}, ${lipBaseColor.b}, ${lipBaseColor.a})`;
         
             ctx.beginPath();
             ctx.lineWidth= 0.9;
@@ -200,134 +233,93 @@ function virtualTryon()
 
             ctx.beginPath();
             ctx.lineWidth= 0.9;
-            landmarkLips2.forEach(point => { ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2) }); //lower lip
-            ctx.fill(); // Lip Filling
-            ctx.stroke();  // Lip Lining
+            landmarkLips2.forEach(point => { ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2) }); //upper lip
+            ctx.fill(); 
+            ctx.stroke();  
             ctx.closePath();
-    
-        }
+          
 
-
-        // Drawing Blush Effect on Face
-        else if(enableFaceBlush){
+            // Drawing Blush Effect on Face
+            // else if(enableFaceBlush){
             const landmarkCheeksLeft= [
-                landmarks[0][119],landmarks[0][116],landmarks[0][123],
-                landmarks[0][147],landmarks[0][187],landmarks[0][205],
-                landmarks[0][36],landmarks[0][119]
+                landmarks[0][119], landmarks[0][116], landmarks[0][123], landmarks[0][147],
+                landmarks[0][187], landmarks[0][205], landmarks[0][36], landmarks[0][119] 
             ];
-
             const landmarkCheeksRight= [
-                landmarks[0][348],landmarks[0][345],landmarks[0][352],
-                landmarks[0][376],landmarks[0][411],landmarks[0][425],
-                landmarks[0][266],landmarks[0][348]
+                landmarks[0][348], landmarks[0][345], landmarks[0][352], landmarks[0][376],
+                landmarks[0][411], landmarks[0][425], landmarks[0][266], landmarks[0][348] 
             ];
-        
-            const ctx = canvas.getContext('2d');
             ctx.globalAlpha = 0.55;
             ctx.filter = 'blur(6px)';
-            const baseColor = { r: legendColors[2][0], g: legendColors[2][1], b: legendColors[2][2], a: 0.3} ;
-            const enhancedColor = { ...baseColor, a: 0.7};
-            enhancedColor.r += 36;
-            enhancedColor.g += 76;
-            enhancedColor.b -= 16;
-            ctx.strokeStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`; // ctx.strokeStyle = 'rgba(201, 15, 40, 0.3)';
-            ctx.shadowBlur = 0; // Adjust as needed
+            const blushBaseColor = { r: legendColors[2][0], g: legendColors[2][1], b: legendColors[2][2], a: 0.3} ;
+            const blushEnhancedColor = { ...blushBaseColor, a: 0.7};
+            blushEnhancedColor.r += 36;
+            blushEnhancedColor.g += 76;
+            blushEnhancedColor.b -= 16;
+            ctx.strokeStyle = `rgba(${blushBaseColor.r}, ${blushBaseColor.g}, ${blushBaseColor.b}, ${blushBaseColor.a})`; // ctx.strokeStyle = 'rgba(201, 15, 40, 0.3)';
+            ctx.shadowBlur = 0;
 
-            ctx.beginPath();
             // Gradient filter for Left Cheek
+            ctx.beginPath();
             const gradientLeftCheek = ctx.createRadialGradient(landmarks[0][50].x * canvas.width, landmarks[0][50].y * canvas.height, 0, landmarks[0][50].x * canvas.width, landmarks[0][50].y * canvas.height, 50);
-            gradientLeftCheek.addColorStop(0, `rgba(${enhancedColor.r}, ${enhancedColor.g}, ${enhancedColor.b}, ${enhancedColor.a})`);
-            gradientLeftCheek.addColorStop(1, `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, 0)`);
+            gradientLeftCheek.addColorStop(0, `rgba(${blushEnhancedColor.r}, ${blushEnhancedColor.g}, ${blushEnhancedColor.b}, ${blushEnhancedColor.a})`);
+            gradientLeftCheek.addColorStop(1, `rgba(${blushBaseColor.r}, ${blushBaseColor.g}, ${blushBaseColor.b}, 0)`);
             ctx.fillStyle = gradientLeftCheek;
             landmarkCheeksLeft.forEach(point => { ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2) });
             ctx.fill();
 
             // Gradient filter for Right Cheek
             const gradientRightCheek = ctx.createRadialGradient( landmarks[0][280].x * canvas.width, landmarks[0][280].y * canvas.height, 0, landmarks[0][280].x * canvas.width, landmarks[0][280].y * canvas.height, 50);
-            gradientRightCheek.addColorStop(0, `rgba(${enhancedColor.r}, ${enhancedColor.g}, ${enhancedColor.b}, ${enhancedColor.a})`);
-            gradientRightCheek.addColorStop(1, `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, 0)`);
+            gradientRightCheek.addColorStop(0, `rgba(${blushEnhancedColor.r}, ${blushEnhancedColor.g}, ${blushEnhancedColor.b}, ${blushEnhancedColor.a})`);
+            gradientRightCheek.addColorStop(1, `rgba(${blushBaseColor.r}, ${blushBaseColor.g}, ${blushBaseColor.b}, 0)`);
             ctx.fillStyle = gradientRightCheek;
             landmarkCheeksRight.forEach(point => {ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2)});
             ctx.fill();
             ctx.closePath()  
-        }
+            // }
 
 
-        // Drawing Eye Liner Effect on Face
-        else if(enableEyeLiner){
-            const landmarkEyeliner1= [
-                landmarks[0][362],landmarks[0][398],landmarks[0][384],landmarks[0][385],landmarks[0][386],landmarks[0][387],landmarks[0][388], landmarks[0][466], 
-                landmarks[0][263], landmarks[0][359]
-            ];
-            const landmarkEyeliner2= [
-                landmarks[0][133], landmarks[0][173],landmarks[0][157],landmarks[0][158], landmarks[0][159], landmarks[0][160], landmarks[0][161], landmarks[0][246], 
-                landmarks[0][33], landmarks[0][130],
-            ];
-
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            const baseColor = { r: legendColors[4][0], g: legendColors[4][1], b: legendColors[4][2], a: 0.8 }
-            ctx.strokeStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`;
-            ctx.fillStyle = `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, ${baseColor.a})`;
-        
-            ctx.beginPath();
-            ctx.lineWidth = 2;  
-            landmarkEyeliner1.forEach(point => {ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2)});    
-            ctx.stroke();
-            ctx.closePath();
-        
-            ctx.beginPath();
-            ctx.lineWidth = 2;
-            landmarkEyeliner2.forEach(point => { ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2) });
-            ctx.stroke();
-            ctx.closePath();   
-        }
-
-
-        // Drawing Eye Shadow Effect on Face
-        if(enableEyeShadow){
+            // Drawing Eye Shadow Effect on Face
+            // else if(enableEyeShadow){
             const landmarkEyeshadow1= [ 
-                landmarks[0][113], landmarks[0][225], landmarks[0][224], landmarks[0][223], landmarks[0][222], 
-                landmarks[0][221], landmarks[0][189], landmarks[0][190], landmarks[0][173], landmarks[0][157], landmarks[0][158], landmarks[0][159], landmarks[0][160], 
-                landmarks[0][161], landmarks[0][246], landmarks[0][33], landmarks[0][130], landmarks[0][113] 
+                landmarks[0][113], landmarks[0][225], landmarks[0][224], landmarks[0][223], landmarks[0][222], landmarks[0][221], 
+                landmarks[0][189], landmarks[0][190], landmarks[0][173], landmarks[0][157], landmarks[0][158], landmarks[0][159], 
+                landmarks[0][160], landmarks[0][161], landmarks[0][246], landmarks[0][33], landmarks[0][130], landmarks[0][113] 
             ];
             const landmarkEyeshadow2= [ 
-                landmarks[0][413], landmarks[0][441], landmarks[0][442], landmarks[0][443], landmarks[0][444], 
-                landmarks[0][445], landmarks[0][342], landmarks[0][263], landmarks[0][466], landmarks[0][388], landmarks[0][387], landmarks[0][386], 
+                landmarks[0][413], landmarks[0][441], landmarks[0][442], landmarks[0][443], landmarks[0][444], landmarks[0][445], 
+                landmarks[0][342], landmarks[0][263], landmarks[0][466], landmarks[0][388], landmarks[0][387], landmarks[0][386], 
                 landmarks[0][385], landmarks[0][384], landmarks[0][398], landmarks[0][362], landmarks[0][413] 
             ];
-
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
             ctx.globalAlpha= 0.5
-
-            const baseColor = { r: legendColors[3][0], g: legendColors[3][1], b: legendColors[3][2], a: 0.5} ; //{ r: 228, g: 93, b: 125, a: 0.5 };
-            const enhancedColor = { ...baseColor, a: 0.2};
-            // enhancedColor.r -= 10;
-            enhancedColor.g -= 20;
-            enhancedColor.b -= 20;
+            const shadowBaseColor = { r: legendColors[3][0], g: legendColors[3][1], b: legendColors[3][2], a: 0.9} ; //{ r: 228, g: 93, b: 125, a: 0.5 };
+            const shadowEnhancedColor = { ...shadowBaseColor, a: 0.8}; // a=0.2
+            shadowEnhancedColor.r -= 10;
+            shadowEnhancedColor.g -= 20;
+            shadowEnhancedColor.b -= 20;
 
             // ctx.fillStyle = gradient;
-            ctx.fillStyle = `rgba(${enhancedColor.r}, ${enhancedColor.g}, ${enhancedColor.b}, ${enhancedColor.a})`;
+            ctx.fillStyle = `rgba(${shadowEnhancedColor.r}, ${shadowEnhancedColor.g}, ${shadowEnhancedColor.b}, ${shadowEnhancedColor.a})`;
             const glossyGradient = ctx.createRadialGradient( canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width / 4);
-            glossyGradient.addColorStop(0, `rgba(${enhancedColor.r}, ${enhancedColor.g}, ${enhancedColor.b}, ${enhancedColor.a})`);
-            glossyGradient.addColorStop(1, `rgba(${enhancedColor.r}, ${enhancedColor.g}, ${enhancedColor.b}, 0.5)`);
+            glossyGradient.addColorStop(0, `rgba(${shadowEnhancedColor.r}, ${shadowEnhancedColor.g}, ${shadowEnhancedColor.b}, ${shadowEnhancedColor.a})`);
+            glossyGradient.addColorStop(1, `rgba(${shadowEnhancedColor.r}, ${shadowEnhancedColor.g}, ${shadowEnhancedColor.b}, 0.5)`);
    
             ctx.beginPath();
             landmarkEyeshadow1.forEach(point => {ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2)});
             landmarkEyeshadow2.forEach(point => {ctx.arc(point.x * canvas.width, point.y * canvas.height, 0, 0, Math.PI * 2)}); 
             ctx.fill();
-            ctx.strokeStyle = `rgba(${enhancedColor.r - 20}, ${enhancedColor.g - 20}, ${enhancedColor.b - 20}, ${enhancedColor.a})`;
-            ctx.shadowColor = `rgba(${enhancedColor.r}, ${enhancedColor.g}, ${enhancedColor.b}, ${enhancedColor.a})`;
+            ctx.strokeStyle = `rgba(${shadowEnhancedColor.r - 20}, ${shadowEnhancedColor.g - 20}, ${shadowEnhancedColor.b - 20}, ${shadowEnhancedColor.a})`;
+            ctx.shadowColor = `rgba(${shadowEnhancedColor.r}, ${shadowEnhancedColor.g}, ${shadowEnhancedColor.b}, ${shadowEnhancedColor.a})`;
             ctx.shadowBlur = 8.0;
             ctx.lineJoin = 'round';
             ctx.fillStyle = glossyGradient;
             ctx.closePath(); 
+            //}   
+
         }
            
     }
   
-
 
     // UTILITY FUNCTIONS TO HANDLE IMAGE/VIDEO DATA, MAKEUP/HAIR TRYON ETC.
 
@@ -370,19 +362,16 @@ function virtualTryon()
             });
         }
 
-        if (enableLipColor==false && enableHairColor==false && enableEyeLiner==false && enableEyeShadow==false && enableFaceBlush==false){
-            document.getElementById("message3").textContent = "Enable atleast one feature";
+        if (enableFaceMakeup){
+            const faceLandmarkerResult = faceLandmarker.detect(event.target);
+            makeupForImage(faceLandmarkerResult.faceLandmarks, canvasClick);
         }
 
-        else {
-        document.getElementById("message3").textContent = " ";
-        const faceLandmarkerResult = faceLandmarker.detect(event.target);
-        makeupForImage(faceLandmarkerResult.faceLandmarks, canvasClick);
-        imageSegmenter.segment(event.target, hairColorForImage);
+        else if (enableHairColor){
+            imageSegmenter.segment(event.target, hairColorForImage);
         }
 
     }
-
 
 
     // Check if webcam access is supported.
@@ -415,7 +404,7 @@ function virtualTryon()
             });
         }
   
-        if (enableLipColor) {
+        if (enableFaceMakeup) {
             const faceLandmarkerResult = faceLandmarker.detect(video);
             makeupForVideo(faceLandmarkerResult.faceLandmarks);
         }
@@ -438,16 +427,8 @@ function virtualTryon()
             enableWebcamButton.innerText = "ENABLE LIVE TRY-ON";
         }
         else {
-            if(!enableLipColor && !enableHairColor){
-                document.getElementById("message2").textContent = "First Enable Lip Color or Hair Color";
-                document.getElementById("message4").textContent = " ";
-            }
-            else{
-            document.getElementById("message2").textContent = " ";
-            document.getElementById("message4").textContent = " ";
             webcamRunning = true;
             enableWebcamButton.innerText = "DISABLE LIVE TRY-ON";
-            }
         }
         const constraints = { video: true, audio: false};
         video = document.getElementById("webcam");
@@ -469,40 +450,22 @@ function virtualTryon()
 
 
 
-    function toggleLipColor() {
+    function toggleFaceMakeup() {
         if(enableHairColor == true) {
             enableHairColor = false;
             const button = document.getElementById("hairColorButton");
             button.innerText = enableHairColor ? "Disable Hair Color" : "Enable Hair Color";
         }
-        enableLipColor = !enableLipColor;
-        const button1 = document.getElementById("lipColorButton");
-        button1.innerText = enableLipColor ? "Disable Lip Color" : "Enable Lip Color";
-    }
-
-    function toggleFaceBlush() {
-        enableFaceBlush = !enableFaceBlush;
-        const button2 = document.getElementById("faceBlushButton");
-        button2.innerText = enableFaceBlush ? "Disable Face Blush" : "Enable Face Blush";
-    }
-
-    function toggleEyeLiner() {
-        enableEyeLiner = !enableEyeLiner;
-        const button3 = document.getElementById("eyeLinerButton");
-        button3.innerText = enableEyeLiner ? "Disable Eye Liner" : "Enable Eye Liner";
-    }
-
-    function toggleEyeShadow() {
-        enableEyeShadow = !enableEyeShadow;
-        const button4 = document.getElementById("eyeShadowButton");
-        button4.innerText = enableEyeShadow ? "Disable Eye Shadow" : "Enable Eye Shadow";
+        enableFaceMakeup = !enableFaceMakeup;
+        const button = document.getElementById("faceMakeupButton");
+        button.innerText = enableFaceMakeup ? "Disable Face Makeup" : "Enable Face Makeup";
     }
 
     function toggleHairColor() {
-        if(enableLipColor == true) {
-            enableLipColor = false;
-            const button1 = document.getElementById("lipColorButton");
-            button1.innerText = enableLipColor ? "Disable Lip Color" : "Enable Lip Color";
+        if(enableFaceMakeup == true) {
+            enableFaceMakeup = false;
+            const button = document.getElementById("faceMakeupButton");
+            button.innerText = enableFaceMakeup ? "Disable Face Makeup" : "Enable Face Makeup";
         }
         enableHairColor = !enableHairColor;
         const button = document.getElementById("hairColorButton");
@@ -512,27 +475,9 @@ function virtualTryon()
 
 
     // Add a click event listener to the Enable/Disable Makuep Options
-    document.getElementById("lipColorButton").addEventListener("click", toggleLipColor);
-    document.getElementById("faceBlushButton").addEventListener("click", toggleFaceBlush);
-    document.getElementById("eyeLinerButton").addEventListener("click", toggleEyeLiner);
-    document.getElementById("eyeShadowButton").addEventListener("click", toggleEyeShadow);
+    document.getElementById("faceMakeupButton").addEventListener("click", toggleFaceMakeup);
     document.getElementById("hairColorButton").addEventListener("click", toggleHairColor);
 
-
-
-    async function gpuInit() {
-        if (!navigator.gpu) {
-            document.getElementById("message").textContent = "GPU not supported, Live hair color not available";
-            throw Error("WebGPU not supported. Reload App.");  
-        } else {
-            gpuStatus = true;
-        }
-        const adapter = await navigator.gpu.requestAdapter();
-        if (!adapter) {
-          throw Error("Couldn't request WebGPU adapter. Reload App.");
-        }
-        const device = await adapter.requestDevice();
-      }
 
 
     //ADD CONTROLS FOR COLOR, OPACITY AND BLUR
@@ -544,13 +489,11 @@ function virtualTryon()
     function colVal() {
             let d = document.getElementById("color").value;
             let hex = hexToRgb(d);
-            hex[3] = 140; // adjust alpha channel -> also called opacity/transparency channel
-            // console.log(hex);
+            hex[3] = 200; // adjust alpha channel -> also called opacity/transparency channel
             legendColors[0] = hex;
             legendColors[1] = hex;
             legendColors[2] = hex;
             legendColors[3] = hex;
-            legendColors[4] = hex;
         }
 
     function blurVal() {
@@ -572,7 +515,7 @@ function virtualTryon()
 }
 
 
-
+gpuInit(); 
 createImageSegmenter();
 createFaceLandmarker();
 virtualTryon();

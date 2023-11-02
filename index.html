@@ -2,7 +2,7 @@
 <html lang="en" >
 <head>
   <meta charset="UTF-8">
-  <title>Buyume VTO Web Application</title>
+  <title>BUYUME VIRTUAL TRY ON APP</title>
   <link rel="stylesheet" href="./style.css">
 </head>
 
@@ -21,25 +21,19 @@
       <input style="width:50px;height:25px" type="number" placeholder="0.5" step=".05" min="0" max="1" id="opacity">
       </div>
 
+      <div id="gpuMsg"> </div>
 
-      <h5>Enable only one feature at a time.</h5>
-      <div id="message"> </div>
       <div class ="makeupClass">
-       <button id="lipColorButton">Enable Lip Color</button>
-       <button id="faceBlushButton">Enable Face Blush</button>
-       <button id="eyeLinerButton">Enable Eye Liner</button>
-       <button id="eyeShadowButton">Enable Eye Shadow</button>
+       <button id="faceMakeupButton">Disable Face Makeup </button>
        <button id="hairColorButton">Enable Hair Color</button>
       </div>
-        
-        <br />
-        <div id="message2"> </div>
+  
         <br />
         <div class="webcam">
           <button id="webcamButton">
             <span style="font-size:2em">LIVE TRY-ON</span>
           </button>
-          <div id="message4"> </div>
+          <div id="makeupMsg"> </div>
           <div class="flipView">
           <canvas id="canvas1" width="640px" height="480px" style="display:none;position:relative;z-index:100;opacity:.5;filter:blur(0px)"></canvas>
           <canvas id="canvas2" width="640px"  height="480px" style="display:none;position:absolute;margin-top:-480px;z-index:0"></canvas>
@@ -49,8 +43,7 @@
         
         
   <h2>Test on images</h2>
-  
-  <div id="message3"> </div>   
+
   <div class="flex-cont">
    
   <div class="segmentOnClick">
